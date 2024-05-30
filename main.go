@@ -17,7 +17,7 @@ func run(proj string, out io.Writer) error {
 	pipeline[0] = newStep("go build", "go", proj, "go build: successful", []string{"build", ".", "errors"})
 	pipeline[1] = newStep("go test", "go", proj, "go test: successful", []string{"test", "-v"})
 	pipeline[2] = newExceptionStep("go fmt", "gofmt", proj, "gofmt: successful", []string{"-l", "."})
-	pipeline[3] = newTimeoutStep("git push", "git", proj, "git push: successful", []string{"push", "origin", "main"}, 10*time.Second)
+	pipeline[3] = newTimeoutStep("git push", "git", proj, "git push: successful", []string{"push", "origin", "main"}, 1*time.Second)
 
 	for _, s := range pipeline {
 		msg, err := s.execute()
