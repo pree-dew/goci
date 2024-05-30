@@ -7,7 +7,9 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -154,6 +156,67 @@ func TestRun(t *testing.T) {
 
 			if buf.String() != tc.out {
 				t.Errorf("expected %v, got %v", tc.out, buf.String())
+			}
+		})
+	}
+}
+
+func TestRunKill(t *testing.T) {
+	testcases := []struct {
+		name   string
+		proj   string
+		sig    syscall.Signal
+		expErr error
+	}{
+		{name: "SIGINT", proj: "./testdata/tool/", sig: syscall.SIGINT, expErr: fmt.Errorf("received signal interrupt: %w", ErrSignal)},
+		{name: "SIGTERM", proj: "./testdata/tool/", sig: syscall.SIGTERM, expErr: fmt.Errorf("received signal terminated: %w", ErrSignal)},
+		{name: "SIGQUIT", proj: "./testdata/tool/", sig: syscall.SIGQUIT, expErr: nil},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			command = mockCmdContextTimeout
+			errCh := make(chan error)
+			ignSigCh := make(chan os.Signal, 1)
+			expSigCh := make(chan os.Signal, 1)
+
+			signal.Notify(ignSigCh, syscall.SIGINT)
+			defer signal.Stop(ignSigCh)
+
+			signal.Notify(expSigCh, tc.sig)
+			defer signal.Stop(expSigCh)
+
+			go func() {
+				errCh <- run(tc.proj, ioutil.Discard)
+			}()
+
+			go func() {
+				time.Sleep(1 * time.Second)
+				syscall.Kill(syscall.Getpid(), tc.sig)
+			}()
+
+			for {
+				select {
+				case err := <-errCh:
+					if err != nil {
+						if tc.expErr == nil {
+							t.Fatalf("expected no error, got %v", err)
+							return
+						}
+
+						if err.Error() != tc.expErr.Error() {
+							t.Fatalf("expected error %v, got %v", tc.expErr, err)
+						}
+					}
+					return
+				case rec := <-expSigCh:
+					if rec != tc.sig {
+						t.Fatalf("expected signal %v, got %v", tc.sig, rec)
+					}
+					return
+				case <-ignSigCh:
+					return
+				}
 			}
 		})
 	}

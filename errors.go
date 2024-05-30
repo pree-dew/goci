@@ -2,7 +2,10 @@ package main
 
 import "fmt"
 
-var ErrValidation = fmt.Errorf("validation failed")
+var (
+	ErrValidation = fmt.Errorf("validation failed")
+	ErrSignal     = fmt.Errorf("signal received")
+)
 
 type stepErr struct {
 	step  string
